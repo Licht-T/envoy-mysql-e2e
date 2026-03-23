@@ -28,7 +28,7 @@ This implementation adds SSL termination to Envoy's MySQL proxy filter, enabling
 - Secure handling of cleartext passwords via libsodium guarded memory
 - Correct sequence number rewriting across the proxy
 
-The approach mirrors the Postgres filter's SSL termination (PR #14634) using the `starttls` transport socket, with additional logic to handle MySQL's `caching_sha2_password` authentication plugin.
+The approach mirrors the Postgres filter's SSL termination ([PR #14634](https://github.com/envoyproxy/envoy/pull/14634)) using the `starttls` transport socket, with additional logic to handle MySQL's `caching_sha2_password` authentication plugin.
 
 ---
 
