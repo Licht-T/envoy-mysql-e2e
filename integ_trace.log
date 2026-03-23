@@ -1,2 +1,0 @@
-[0m[32mPASSED: [0m//contrib/mysql_proxy/filters/network/test:mysql_ssl_integration_test (see /build/.cache/bazel/_bazel_root/b570b5ccd0454dc9af9f65ab1833764d/execroot/envoy/bazel-out/aarch64-fastbuild/testlogs/contrib/mysql_proxy/filters/network/test/mysql_ssl_integration_test/test.log)
-[  PASSED  ] 1 test.

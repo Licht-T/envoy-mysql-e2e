@@ -1,3 +1,7 @@
 envoy-contrib
 envoy
 .image-built
+
+*.log
+*.pem
+
