@@ -20,9 +20,9 @@ cd "$DIR"
 
 # ── Configuration ─────────────────────────────────────────────────────
 ALL_VERSIONS=("5.7" "8.0" "8.4" "9.0" "9.1")
-ENVOY_SSL_TERM_PORT=3307
-ENVOY_NO_SSL_PORT=3308
-ENVOY_SSL_ALLOW_PORT=3310
+ENVOY_SSL_REQUIRE_PORT=3307
+ENVOY_SSL_DISABLE_PORT=3308
+ENVOY_SSL_ALLOW_PORT=3309
 ADMIN_PORT=8001
 MYSQL_USER="testuser"
 MYSQL_PASSWORD="testpass"
@@ -85,7 +85,7 @@ mysql_via_envoy() {
   mysql_client_run \
     -v "$DIR/certs/ca-cert.pem:/ca-cert.pem:ro" \
     "${MYSQL_CLIENT_IMAGE}" \
-    mysql -h envoy -P "$ENVOY_SSL_TERM_PORT" \
+    mysql -h envoy -P "$ENVOY_SSL_REQUIRE_PORT" \
     -u "$1" -p"$2" \
     --ssl-mode=REQUIRED \
     --ssl-ca=/ca-cert.pem \
@@ -96,7 +96,7 @@ mysql_via_envoy() {
 mysql_via_envoy_no_ssl() {
   mysql_client_run \
     "${MYSQL_CLIENT_IMAGE}" \
-    mysql -h envoy -P "$ENVOY_NO_SSL_PORT" \
+    mysql -h envoy -P "$ENVOY_SSL_DISABLE_PORT" \
     -u "$1" -p"$2" \
     --ssl-mode=DISABLED \
     --get-server-public-key \
@@ -258,8 +258,8 @@ test_multiple_connections() {
 # Test 7: Envoy stats show successful sessions.
 test_envoy_stats() {
   local stats
-  stats=$(curl -sf "http://127.0.0.1:${ADMIN_PORT}/stats?filter=egress_mysql_ssl_term" 2>/dev/null)
-  if echo "$stats" | grep -q "egress_mysql_ssl_term.sessions"; then
+  stats=$(curl -sf "http://127.0.0.1:${ADMIN_PORT}/stats?filter=egress_mysql_ssl_require" 2>/dev/null)
+  if echo "$stats" | grep -q "egress_mysql_ssl_require.sessions"; then
     record "envoy_stats" "PASS"
   else
     err "Stats output: $stats"
@@ -375,7 +375,7 @@ test_ssl_empty_password() {
   out=$(mysql_client_run \
     -v "$DIR/certs/ca-cert.pem:/ca-cert.pem:ro" \
     "${MYSQL_CLIENT_IMAGE}" \
-    mysql -h envoy -P "$ENVOY_SSL_TERM_PORT" -u emptyuser \
+    mysql -h envoy -P "$ENVOY_SSL_REQUIRE_PORT" -u emptyuser \
     --ssl-mode=REQUIRED --ssl-ca=/ca-cert.pem \
     -e "SELECT 'empty_ok' AS status;")
   if echo "$out" | grep -q "empty_ok"; then
@@ -492,8 +492,8 @@ test_no_ssl_multi_conn() {
 # No-SSL: Envoy stats for the no-ssl listener.
 test_no_ssl_stats() {
   local stats
-  stats=$(curl -sf "http://127.0.0.1:${ADMIN_PORT}/stats?filter=egress_mysql_no_ssl" 2>/dev/null)
-  if echo "$stats" | grep -q "egress_mysql_no_ssl.sessions"; then
+  stats=$(curl -sf "http://127.0.0.1:${ADMIN_PORT}/stats?filter=egress_mysql_ssl_disable" 2>/dev/null)
+  if echo "$stats" | grep -q "egress_mysql_ssl_disable.sessions"; then
     record "no_ssl_stats" "PASS"
   else
     err "Stats output: $stats"
@@ -531,7 +531,7 @@ test_ssl_require_rejects_non_ssl() {
   local out
   out=$(mysql_client_run \
     "${MYSQL_CLIENT_IMAGE}" \
-    mysql -h envoy -P "$ENVOY_SSL_TERM_PORT" \
+    mysql -h envoy -P "$ENVOY_SSL_REQUIRE_PORT" \
     -u "$MYSQL_USER" -p"$MYSQL_PASSWORD" \
     --ssl-mode=DISABLED \
     -e "SELECT 1;") || true
@@ -549,7 +549,7 @@ test_no_ssl_passthrough_with_ssl() {
   local out
   out=$(mysql_client_run \
     "${MYSQL_CLIENT_IMAGE}" \
-    mysql -h envoy -P "$ENVOY_NO_SSL_PORT" \
+    mysql -h envoy -P "$ENVOY_SSL_DISABLE_PORT" \
     -u "$MYSQL_USER" -p"$MYSQL_PASSWORD" \
     --ssl-mode=REQUIRED \
     -e "SELECT 'passthru_ssl_ok' AS status;")

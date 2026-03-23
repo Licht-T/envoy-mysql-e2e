@@ -7,9 +7,9 @@ services:
       - ./certs:/etc/envoy/certs:ro
     command: -c /etc/envoy/envoy.yaml -l ${ENVOY_LOG_LEVEL:-debug}
     ports:
-      - "3307:3307"   # SSL Terminated
-      - "3308:3308"   # No SSL
-      - "3310:3310"   # SSL ALLOW
+      - "3307:3307"   # SSL REQUIRE
+      - "3308:3308"   # SSL DISABLE
+      - "3309:3309"   # SSL ALLOW
       - "8001:8001"
     depends_on:
       mysql:

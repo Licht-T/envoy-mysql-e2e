@@ -8,7 +8,7 @@ Tests run against real MySQL servers (5.7, 8.0, 8.4, 9.0, 9.1) using Docker, val
 |------|------|----------|
 | 3307 | `REQUIRE` | Envoy terminates TLS, rejects non-SSL clients, mediates RSA auth |
 | 3308 | `DISABLE` | Plain TCP proxy with MySQL protocol sniffing, SSL passthrough |
-| 3310 | `ALLOW` | Terminates TLS if client requests, accepts cleartext otherwise |
+| 3309 | `ALLOW` | Terminates TLS if client requests, accepts cleartext otherwise |
 
 ## Prerequisites
 
