@@ -1,0 +1,41 @@
+services:
+  envoy:
+    image: ${ENVOY_IMAGE:-envoyproxy/envoy-contrib-dev:latest}
+    pull_policy: ${ENVOY_PULL_POLICY:-missing}
+    volumes:
+      - ./envoy.yaml:/etc/envoy/envoy.yaml:ro
+      - ./certs:/etc/envoy/certs:ro
+    command: -c /etc/envoy/envoy.yaml -l ${ENVOY_LOG_LEVEL:-debug}
+    ports:
+      - "3307:3307"   # SSL Terminated
+      - "3308:3308"   # No SSL
+      - "3310:3310"   # SSL ALLOW
+      - "8001:8001"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - mysql_net
+
+  mysql:
+    image: ${MYSQL_IMAGE:-mysql:8.0}
+    platform: ${MYSQL_PLATFORM:-}
+    environment:
+      MYSQL_ROOT_PASSWORD: testpass
+      MYSQL_DATABASE: testdb
+      MYSQL_USER: testuser
+      MYSQL_PASSWORD: testpass
+    # Keep SSL enabled on MySQL so the greeting advertises SSL capability.
+    # Envoy connects over plaintext upstream; clients negotiate TLS with Envoy.
+    # MYSQL_CMD is set per-version by run_tests.sh.
+    command: ${MYSQL_CMD:-}
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -ptestpass 2>/dev/null"]
+      interval: 3s
+      timeout: 5s
+      retries: 30
+    networks:
+      - mysql_net
+
+networks:
+  mysql_net:
