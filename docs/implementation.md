@@ -482,7 +482,7 @@ auto pkey = Envoy::Common::Crypto::UtilitySingleton::get().importPublicKeyPEM(pe
 | `SslTerminateLoginThenQuery` | TLS → native password login → query after auth |
 | `CachingSha2FullAuthRsaThenQuery` | TLS → RSA mediation → query after auth |
 
-### Docker E2E tests (test_with_docker/)
+### Docker E2E tests (this repo)
 
 89 tests across MySQL 8.0, 8.4, 9.0, 9.1 with three listener modes:
 
