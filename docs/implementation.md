@@ -459,35 +459,38 @@ auto pkey = Envoy::Common::Crypto::UtilitySingleton::get().importPublicKeyPEM(pe
 
 ### Unit tests (mysql_filter_test.cc)
 
-44 tests covering all three SSL modes:
+48 tests covering all three SSL modes:
 
 | Category | Tests |
 |----------|-------|
-| **SSL Terminated** | Native password login, login+query, RSA full flow, RSA+query, fast auth passthrough, RSA ERR, startTLS failure |
-| **SSL Passthrough** | Passthrough with caching_sha2 |
-| **No-SSL** | Login+query, caching_sha2 fast auth, caching_sha2 full auth passthrough |
-| **REQUIRE enforcement** | Reject non-SSL client, accept SSL client |
-| **ALLOW mode** | Accept non-SSL client |
+| **REQUIRE** | Native password login, login+query, RSA full flow, RSA+query, fast auth passthrough, RSA ERR, startTLS failure, reject non-SSL client, accept SSL client |
+| **DISABLE** | SSL passthrough, caching_sha2 full auth no mediation, caching_sha2 passthrough |
+| **ALLOW** | Accept non-SSL client, SSL+RSA mediation, non-SSL no mediation |
 | **Existing** | All 29 pre-existing tests continue to pass |
 
 ### Integration tests (mysql_ssl_integration_test.cc)
 
-10 tests (5 scenarios x IPv4/IPv6), using real `starttls` transport socket with TLS client upgrade:
+20 tests (10 scenarios x IPv4/IPv6) across three test classes:
 
-| Test | What it validates |
-|------|-------------------|
-| `CachingSha2FastAuth` | TLS handshake → fast auth → OK |
-| `CachingSha2FullAuthRsaMediation` | TLS → full auth → RSA. Verifies injected packets. |
-| `CachingSha2FullAuthRsaErr` | TLS → full auth → RSA → ERR |
-| `SslTerminateLoginThenQuery` | TLS → native password login → query after auth |
-| `CachingSha2FullAuthRsaThenQuery` | TLS → RSA mediation → query after auth |
+| Class | Test | What it validates |
+|-------|------|-------------------|
+| **REQUIRE** | `CachingSha2FastAuth` | TLS handshake → fast auth → OK |
+| | `CachingSha2FullAuthRsaMediation` | TLS → full auth → RSA. Verifies injected packets. |
+| | `CachingSha2FullAuthRsaErr` | TLS → full auth → RSA → ERR |
+| | `SslTerminateLoginThenQuery` | TLS → native password login → query after auth |
+| | `CachingSha2FullAuthRsaThenQuery` | TLS → RSA mediation → query after auth |
+| **DISABLE** | `DisableBasicLogin` | Plain TCP login, no SSL |
+| | `DisableSslPassthrough` | SSL request forwarded to upstream unmodified |
+| **ALLOW** | `AllowSslClientLogin` | SSL client terminates TLS, login OK |
+| | `AllowNonSslClientLogin` | Non-SSL client accepted, login OK |
+| | `AllowSslFullAuthRsaMediation` | SSL client → full auth → RSA mediation |
 
 ### Docker E2E tests (this repo)
 
-89 tests across MySQL 8.0, 8.4, 9.0, 9.1 with three listener modes:
+130 tests across MySQL 5.7, 8.0, 8.4, 9.0, 9.1 with three listener modes:
 
 | Mode (port) | Tests per version |
 |---|---|
-| **SSL Terminated** (3307) | basic_connectivity, wrong_password, dml, multi_conn, stats, multi_query_session, transaction, prepared_statement, large_result, empty_password, warm_cache, cold_cache, native_password, long_password |
-| **No-SSL** (3308) | connectivity, wrong_password, dml, multi_conn, stats |
-| **SSL Passthrough** (3309) | connectivity, wrong_password, dml, stats |
+| **REQUIRE** (3307) | basic_connectivity, wrong_password, dml, multi_conn, stats, multi_query_session, transaction, prepared_statement, large_result, empty_password, require_rejects_non_ssl, warm_cache, cold_cache, native_password, long_password, rsa_then_query |
+| **DISABLE** (3308) | connectivity, wrong_password, dml, multi_conn, stats, passthrough_with_ssl |
+| **ALLOW** (3309) | ssl_connectivity, no_ssl_connectivity, ssl_wrong_password, ssl_dml, stats, ssl_cold_cache |
