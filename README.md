@@ -142,6 +142,10 @@ docker compose down -v
 | 9.0 | Yes | Yes | Same as 8.4. |
 | 9.1 | Yes | Yes | Same as 8.4. |
 
+## Documentation
+
+- **[docs/implementation.md](docs/implementation.md)** — Detailed implementation design covering the MySQL authentication protocol, RSA mediation state machine, sequence number management, secure password handling, and the full protocol walkthrough with byte-level detail.
+
 ## Project Structure
 
 ```
@@ -152,6 +156,8 @@ docker compose down -v
 ├── docker-compose.yaml    # Envoy + MySQL services
 ├── envoy.yaml             # Multi-listener Envoy config (REQUIRE/DISABLE/ALLOW)
 ├── Dockerfile             # Minimal image for the Envoy binary
+├── docs/
+│   └── implementation.md  # Implementation design document
 ├── certs/
 │   └── generate.sh        # Self-signed CA + server cert generator
 └── .gitignore
