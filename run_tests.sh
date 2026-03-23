@@ -67,10 +67,15 @@ wait_for_envoy() {
   done
 }
 
+# Docker Compose network name: <project-name>_<network-name>.
+# Project name defaults to the directory name (lowercase).
+COMPOSE_PROJECT="$(basename "$DIR" | tr '[:upper:]' '[:lower:]')"
+COMPOSE_NETWORK="${COMPOSE_PROJECT}_mysql_net"
+
 # Helper: run a disposable mysql client container.
 # Uses MYSQL_CLIENT_IMAGE and MYSQL_PLATFORM (set per-version).
 mysql_client_run() {
-  docker run --rm --network=test_with_docker_mysql_net \
+  docker run --rm --network="$COMPOSE_NETWORK" \
     ${MYSQL_PLATFORM:+--platform "$MYSQL_PLATFORM"} \
     "$@" 2>&1
 }
@@ -664,7 +669,6 @@ for cmd in docker curl; do
 done
 
 # Determine the Envoy Docker image to use.
-REPO_ROOT="$(cd "$DIR/.." && pwd)"
 LOCAL_BINARY="$DIR/envoy-contrib"
 
 if [ -n "${ENVOY_DOCKER_IMAGE:-}" ]; then

@@ -1,20 +1,29 @@
 #!/usr/bin/env bash
 #
-# Build envoy-contrib binary using the same devcontainer environment.
+# Build envoy-contrib binary using Envoy's devcontainer environment.
 # Uses a persistent Docker volume (envoy-build) for bazel cache,
 # so subsequent builds are fast.
 #
 # Usage:
-#   ./build_envoy.sh                    # Build contrib binary
-#   BAZEL_EXTRA="--config=debug" ./build_envoy.sh  # With extra bazel flags
+#   ENVOY_SRCDIR=../envoy ./build_envoy.sh             # Specify Envoy source path
+#   ENVOY_SRCDIR=../envoy BAZEL_EXTRA="--config=debug" ./build_envoy.sh
 #
 set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
-REPO_ROOT="$(cd "$DIR/.." && pwd)"
 OUTPUT="$DIR/envoy-contrib"
 
-cd "$REPO_ROOT"
+# Locate the Envoy source tree.
+ENVOY_SRCDIR="${ENVOY_SRCDIR:-../envoy}"
+if [ ! -f "$ENVOY_SRCDIR/ci/envoy_build_sha.sh" ]; then
+  echo "[-] Envoy source not found at: $ENVOY_SRCDIR"
+  echo "    Set ENVOY_SRCDIR to the path of your envoy checkout."
+  echo "    Example: ENVOY_SRCDIR=../envoy ./build_envoy.sh"
+  exit 1
+fi
+ENVOY_SRCDIR="$(cd "$ENVOY_SRCDIR" && pwd)"
+
+cd "$ENVOY_SRCDIR"
 
 # Generate the devcontainer Dockerfile (same as .devcontainer/init.sh).
 export ENVOY_BUILD_VARIANT="${ENVOY_BUILD_VARIANT:-}"
@@ -30,11 +39,13 @@ if [ "$(docker images -q "$IMAGE_NAME" 2>/dev/null)" = "" ]; then
 fi
 
 echo "[+] Building //contrib/exe:envoy-static inside devcontainer..."
+echo "[+] Envoy source: $ENVOY_SRCDIR"
 echo "[+] Bazel cache persisted in Docker volume 'envoy-build'"
 
 docker run --rm \
   --entrypoint bash \
-  --volume="${REPO_ROOT}:/source" \
+  --volume="${ENVOY_SRCDIR}:/source" \
+  --volume="${DIR}:/output" \
   --volume=envoy-build:/build \
   --workdir=/source \
   --env="HOME=/build" \
@@ -44,7 +55,7 @@ docker run --rm \
     apt-get update -qq && apt-get install -y -qq lld >/dev/null 2>&1; \
     ln -sf /usr/bin/ld.lld /usr/bin/ld; \
     bazel build //contrib/exe:envoy-static ${BAZEL_EXTRA:-}; \
-    cp -f bazel-bin/contrib/exe/envoy-static /source/test_with_docker/envoy-contrib; \
+    cp -f bazel-bin/contrib/exe/envoy-static /output/envoy-contrib; \
     echo BUILD_SUCCESS"
 
 if [ -f "$OUTPUT" ]; then

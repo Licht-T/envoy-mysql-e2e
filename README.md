@@ -19,15 +19,28 @@ Tests run against real MySQL servers (5.7, 8.0, 8.4, 9.0, 9.1) using Docker, val
 
 ### Option 1: Build from Envoy source
 
-You can build the `envoy-contrib` binary from the [Envoy repo](https://github.com/envoyproxy/envoy) using one of these methods:
+Clone the repos side by side:
 
-```bash
-cd /path/to/envoy
-bazel build //contrib/exe:envoy-static
-cp bazel-bin/contrib/exe/envoy-static /path/to/this-repo/envoy-contrib
+```
+parent/
+├── envoy/              # https://github.com/envoyproxy/envoy
+└── envoy-mysql-e2e/    # this repo
 ```
 
-> **Note**: The binary must be a **Linux** ELF binary (not macOS Mach-O) since it runs inside a Docker container. Methods A and B produce Linux binaries automatically. Method C only works on Linux hosts.
+Then build using `build_envoy.sh`, which runs the build inside Envoy's devcontainer (works on macOS and Linux):
+
+```bash
+# Default: expects ../envoy as the Envoy source
+./build_envoy.sh
+
+# Or specify the path explicitly
+ENVOY_SRCDIR=/path/to/envoy ./build_envoy.sh
+```
+
+This:
+- Uses Envoy's official build image (same as CI)
+- Persists the bazel cache in a Docker volume (`envoy-build`) — first build takes ~2 hours, incremental rebuilds ~1 minute
+- Produces a Linux ELF binary at `./envoy-contrib`
 
 Then run the tests:
 
@@ -51,6 +64,7 @@ ENVOY_DOCKER_IMAGE=envoyproxy/envoy-contrib-dev:latest ./run_tests.sh 8.0
 
 | Variable | Default | Description |
 |----------|---------|-------------|
+| `ENVOY_SRCDIR` | `../envoy` | Path to Envoy source tree (used by `build_envoy.sh`) |
 | `ENVOY_BINARY` | `./envoy-contrib` | Path to a local Envoy binary |
 | `ENVOY_DOCKER_IMAGE` | — | Use a pre-built Docker image directly (skips binary build) |
 | `ENVOY_LOG_LEVEL` | `debug` | Envoy log level (`trace`, `debug`, `info`, `warning`, `error`) |
@@ -139,11 +153,7 @@ docker compose down -v
 ├── envoy.yaml             # Multi-listener Envoy config (REQUIRE/DISABLE/ALLOW)
 ├── Dockerfile             # Minimal image for the Envoy binary
 ├── certs/
-│   ├── generate.sh        # Self-signed CA + server cert generator
-│   ├── ca-cert.pem
-│   ├── ca-key.pem
-│   ├── server-cert.pem
-│   └── server-key.pem
+│   └── generate.sh        # Self-signed CA + server cert generator
 └── .gitignore
 ```
 
