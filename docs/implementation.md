@@ -25,7 +25,7 @@ This implementation adds SSL termination to Envoy's MySQL proxy filter, enabling
 - Clients to connect to Envoy over TLS
 - Envoy to connect to MySQL servers over plaintext
 - Transparent mediation of `caching_sha2_password` full authentication (RSA public key exchange)
-- Secure handling of cleartext passwords via libsodium guarded memory
+- Secure handling of cleartext passwords via BoringSSL's `OPENSSL_cleanse`
 - Correct sequence number rewriting across the proxy
 
 The approach mirrors the Postgres filter's SSL termination ([PR #14634](https://github.com/envoyproxy/envoy/pull/14634)) using the `starttls` transport socket, with additional logic to handle MySQL's `caching_sha2_password` authentication plugin.
@@ -252,19 +252,19 @@ The filter uses a 4-state machine (`RsaAuthState`) to track the RSA mediation fl
 
 ## Secure Password Handling
 
-Cleartext passwords are handled using libsodium's guarded memory to prevent leakage:
+Cleartext passwords are handled using BoringSSL's `OPENSSL_cleanse` to prevent leakage:
 
-1. **`BufferHelper::readSecureBytes()`**: Reads bytes from the Envoy buffer into a `SecureBytes` object (backed by `sodium_malloc` with guard pages), then zeroes the source buffer slices via `sodium_memzero`.
-2. **`SecureBytes`** class (in `mysql_utils.h`): RAII wrapper around `sodium_malloc`/`sodium_free`. Memory is automatically zeroed on destruction. Non-copyable, move-only.
+1. **`BufferHelper::readSecureBytes()`**: Reads bytes from the Envoy buffer into a `SecureBytes` object, then zeroes the source buffer slices via `OPENSSL_cleanse`.
+2. **`SecureBytes`** class (in `mysql_utils.h`): RAII wrapper that zeroes memory via `OPENSSL_cleanse` on destruction. Non-copyable, move-only.
 3. **Callback signature**: `onAuthSwitchMoreClientData(std::unique_ptr<SecureBytes>)` — password ownership is transferred directly, never touching `std::string`.
 
 Password lifecycle:
 ```
-Wire buffer → readSecureBytes() → SecureBytes (guarded memory)
-                  ↓ zeroes source buffer slices
+Wire buffer → readSecureBytes() → SecureBytes
+                  ↓ OPENSSL_cleanse zeroes source buffer slices
               callback passes ownership via std::move
               filter uses it for XOR + RSA encrypt (in SecureBytes)
-              reset() → sodium_free (zeroes before freeing)
+              reset() → destructor calls OPENSSL_cleanse before delete
 ```
 
 ---
@@ -356,15 +356,14 @@ Filter action: Normal decode path. `getExpectedSeq(false) = seq_(5) - (-1) = 6`,
 | `mysql_proxy.proto` | Added `SSLMode` enum (`DISABLE`, `REQUIRE`, `ALLOW`) and `downstream_ssl` field. TODO for `upstream_ssl`. |
 | `mysql_session.h` | `bool is_in_ssl_auth_` → `int8_t seq_offset_`. Added `getSeqOffset()`, `setSeqOffset()`, `adjustSeqOffset()`. |
 | `mysql_codec.h` | Added constants: `MYSQL_CACHINGSHA2_FAST_AUTH_SUCCESS` (0x03), `MYSQL_CACHINGSHA2_FULL_AUTH_REQUIRED` (0x04), `MYSQL_REQUEST_PUBLIC_KEY` (0x02). |
-| `mysql_utils.h` | Added `SecureBytes` class (libsodium guarded memory). Added `BufferHelper::readSecureBytes()`. |
-| `mysql_utils.cc` | Implemented `readSecureBytes()`: reads into `SecureBytes`, zeroes source buffer slices. |
+| `mysql_utils.h` | Added `SecureBytes` class (zeroed via `OPENSSL_cleanse` on destruction). Added `BufferHelper::readSecureBytes()`. |
+| `mysql_utils.cc` | Implemented `readSecureBytes()`: reads into `SecureBytes`, zeroes source buffer slices via `OPENSSL_cleanse`. |
 | `mysql_decoder.h` | Changed `onAuthSwitchMoreClientData` to take `std::unique_ptr<SecureBytes>`. |
 | `mysql_decoder_impl.cc` | `AuthSwitchMore` upstream case: reads via `readSecureBytes()` and passes ownership. Changed `setIsInSslAuth(true)` → `adjustSeqOffset(1)`. |
 | `mysql_filter.h` | `bool terminate_ssl_` → `SSLMode downstream_ssl_` with `terminateSsl()` helper. Added `RsaAuthState` enum, `write_callbacks_`, `cleartext_password_` (as `std::unique_ptr<SecureBytes>`), `server_scramble_`, `auth_plugin_name_`. |
 | `mysql_filter.cc` | Main implementation. `onServerGreeting()` captures scramble (truncated to 20 bytes). `onClientLogin()` enforces REQUIRE mode. `onClientLoginResponse()` detects 0x04 full auth. `onData()` intercepts password. `onWrite()` intercepts PEM key. `sendEncryptedPassword()` does XOR + RSA encrypt. |
 | `mysql_config.cc` | Reads `downstream_ssl` from proto instead of hardcoding `terminate_ssl = true`. |
-| `source/BUILD` | Added `//bazel/foreign_cc:libsodium` to `util_lib`, `//source/common/crypto:utility_lib` and proto dep to `filter_lib`. |
-| `bazel/` | Added libsodium as external dependency (`repository_locations.bzl`, `repositories.bzl`, `foreign_cc/BUILD`, `deps.yaml`). |
+| `source/BUILD` | Added `external_deps = ["ssl"]` to `util_lib`, `//source/common/crypto:utility_lib` and proto dep to `filter_lib`. |
 
 ---
 
